@@ -1,64 +1,91 @@
-# 🎬 ReelStream — Minimalist Smooth Reel Video Player
+# 🤖 Jerkmate Telegram Bot (Render Web Service)
 
-A sleek, responsive, zero-flicker vertical video player for streaming random reels with native dual-slot transitions and finger-drag physics.
-
-**100% Pure Static Web Application** — No Python, no backend server, and no Render process needed. Host anywhere with zero configuration!
+A production-ready Python Telegram bot configured to run as a **Web Service on [Render](https://render.com)**.
 
 ---
 
-## ✨ Features
+## 🌟 Features
 
-- **Dual-Slot Smooth Transition Engine**:
-  - Zero black-screen flash or decoder lag when switching reels.
-  - Active video glides out while the incoming video slides smoothly in with native spring physics (`cubic-bezier(0.2, 0.95, 0.25, 1)`).
-  - Background preloading of the next random reel for instant playback.
-- **Finger Swipe & Drag-to-Follow Gestures**:
-  - Drag up or down on touch devices with real-time responsive tracking.
-  - Momentum flick detection and rubber-band springback.
-- **Micro-Interactions**:
-  - Double-tap animated heart pop burst.
-- **Native Share & Clipboard**:
-  - One-tap "Share" button supporting the Web Share API and automatic clipboard copy.
-- **100% Pure Static Architecture**:
-  - Pure HTML5, CSS3, ES Modules JavaScript, and text-based link catalog (`reels.txt`).
-  - Zero server or backend dependencies. No login or external account required.
+- **Render Web Service Ready**: Runs a lightweight `aiohttp` web server bound to `0.0.0.0:$PORT` with `/` and `/health` health check endpoints so Render marks your service **Healthy** without timing out.
+- **Dual Mode (Polling or Webhook)**:
+  - **Polling Mode (Default)**: Runs polling immediately with no domain or SSL setup required.
+  - **Webhook Mode (Optional)**: Automatically activates if `WEBHOOK_URL` or `RENDER_EXTERNAL_URL` is set in your environment variables.
+- **Interactive Menu**: `/start` with inline keyboard buttons.
+- **Commands**:
+  - `/start` - Interactive greeting with inline buttons
+  - `/help` - Command list
+  - `/ping` - Latency and server health check
+  - `/echo <text>` - Message echoing test
 
 ---
 
-## 🚀 Static Hosting Options
+## 🚀 How to Deploy on Render
 
-You can host this project directly on any static web host or CDN:
+### Step 1: Push Repository to GitHub
+The repository is hosted at:
+[https://github.com/jisan789/jerkmate](https://github.com/jisan789/jerkmate)
 
-### 1. GitHub Pages
-1. Go to repository **Settings** > **Pages**.
-2. Select branch `main` and root folder `/`.
-3. Click **Save** — live instantly!
+### Step 2: Create a Web Service on Render
+1. Go to [Render Dashboard](https://dashboard.render.com/).
+2. Click **New +** -> **Web Service**.
+3. Connect your GitHub repository `jisan789/jerkmate`.
+4. Fill in the settings:
+   - **Name**: `jerkmate-bot` (or any name you prefer)
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python main.py`
+   - **Instance Type**: `Free`
 
-### 2. Cloudflare Pages / Vercel / Netlify
-1. Connect your repository.
-2. Build command: *(leave empty)*
-3. Publish directory: *(leave root `/` or `.`)
-4. Deploy!
+### Step 3: Add Environment Variables
+Under the **Environment Variables** section in Render, add:
 
-### 3. Local Preview
-Run any local static file server:
-```bash
-# Using python built-in http server (optional, for local viewing only):
-python -m http.server 3000
+| Key | Value | Description |
+|---|---|---|
+| `BOT_TOKEN` | `8829502139:AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk` | Your Telegram Bot token from @BotFather |
+| `PORT` | `10000` | Port for Render HTTP service |
+| `WEBHOOK_URL` *(Optional)* | `https://your-app-name.onrender.com` | If set, bot will use Webhooks instead of Polling |
 
-# Or using npx serve:
-npx serve .
+### Step 4: Deploy!
+Click **Create Web Service**. Render will install dependencies and start `python main.py`.
+Once deployed, you will see:
+```
+==> Docs on specifying a build command: https://render.com/docs/build-command
+==> Installing dependencies with pip install -r requirements.txt
+...
+==> Starting service with 'python main.py'
+INFO - Render HTTP Health server listening on 0.0.0.0:10000
+INFO - Bot is actively polling for messages!
+==> Your service is live 🎉
 ```
 
 ---
 
-## ⌨️ Controls & Keyboard Shortcuts
+## 💻 Local Development
 
-| Control | Action |
-| --- | --- |
-| <kbd>↓</kbd> or <kbd>J</kbd> | Next Random Reel (Smooth Transition) |
-| <kbd>↑</kbd> or <kbd>K</kbd> | Previous Reel (Session History) |
-| <kbd>Space</kbd> or Tap | Play / Pause |
-| Double Tap on Screen | Love React (Heart burst) |
-| <kbd>L</kbd> | Love React Toggle |
-| <kbd>M</kbd> | Audio Mute / Unmute |
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/jisan789/jerkmate.git
+   cd jerkmate
+   ```
+
+2. **Create virtual environment & install requirements:**
+   ```bash
+   python -m venv venv
+   # On Windows:
+   venv\Scripts\activate
+   # On Linux/macOS:
+   source venv/bin/activate
+
+   pip install -r requirements.txt
+   ```
+
+3. **Configure environment:**
+   Create a `.env` file from `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. **Run the bot:**
+   ```bash
+   python main.py
+   ```
