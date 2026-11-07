@@ -1,8 +1,9 @@
 import os
 import random
+import asyncio
 import logging
 from aiohttp import web
-from telegram import Update, InputMediaVideo, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -24,76 +25,96 @@ logging.basicConfig(
 logger = logging.getLogger("jerkmate_bot")
 
 # ---------------------------------------------------------------------------
-# Reels Loader
+# Reels Database & Cache
 # ---------------------------------------------------------------------------
 REELS_FILE = os.path.join(os.path.dirname(__file__), "reels.txt")
 
 
 def load_reels() -> list:
-    """Loads and caches reel video URLs from reels.txt."""
+    """Loads and caches unique, valid reel video URLs from reels.txt."""
     if not os.path.exists(REELS_FILE):
         logger.warning(f"Reels file '{REELS_FILE}' not found!")
         return []
     with open(REELS_FILE, "r", encoding="utf-8") as f:
-        reels = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-    logger.info(f"Loaded {len(reels)} reel videos from {REELS_FILE}")
-    return reels
+        reels = [
+            line.strip()
+            for line in f
+            if line.strip()
+            and not line.startswith("#")
+            and (line.strip().startswith("http://") or line.strip().startswith("https://"))
+        ]
+    # Keep unique URLs
+    unique_reels = list(dict.fromkeys(reels))
+    logger.info(f"Loaded {len(unique_reels)} unique reel videos from {REELS_FILE}")
+    return unique_reels
 
 
 REELS_CACHE = load_reels()
 
 
-def get_random_reels(count: int) -> list:
-    """Gets a random sample of reel video URLs up to count (maximum 10)."""
+def get_single_random_reel() -> str:
+    """Retrieves a single random reel from cache."""
     global REELS_CACHE
     if not REELS_CACHE:
         REELS_CACHE = load_reels()
     if not REELS_CACHE:
-        return []
-    count = max(1, min(count, 10))
-    sample_size = min(count, len(REELS_CACHE))
-    return random.sample(REELS_CACHE, sample_size)
-
-
-async def send_reels_as_videos(bot, chat_id: int, count: int):
-    """Sends reel videos directly into the chat (single video or media group)."""
-    reels = get_random_reels(count)
-    if not reels:
-        logger.warning("No reels available to send.")
-        return
-
-    # Notify Telegram chat action (uploading video...)
-    try:
-        await bot.send_chat_action(chat_id=chat_id, action="upload_video")
-    except Exception:
-        pass
-
-    if len(reels) == 1:
-        # Send single video directly
-        try:
-            await bot.send_video(chat_id=chat_id, video=reels[0], supports_streaming=True)
-        except Exception as e:
-            logger.error(f"Failed to send single video: {e}")
-            # Try alternate fallback
-            reels_alt = get_random_reels(1)
-            if reels_alt:
-                await bot.send_video(chat_id=chat_id, video=reels_alt[0], supports_streaming=True)
-    else:
-        # Send multiple videos as media album (up to 10)
-        try:
-            media = [InputMediaVideo(media=url, supports_streaming=True) for url in reels]
-            await bot.send_media_group(chat_id=chat_id, media=media)
-        except Exception as e:
-            logger.warning(f"send_media_group failed ({e}), falling back to individual video sends...")
-            for url in reels:
-                try:
-                    await bot.send_video(chat_id=chat_id, video=url, supports_streaming=True)
-                except Exception as err:
-                    logger.error(f"Failed sending video {url}: {err}")
+        return ""
+    return random.choice(REELS_CACHE)
 
 
 # ---------------------------------------------------------------------------
-# Telegram Command Handlers (Group-safe & Mute on all non-commands)
+# Background Worker: Video Sender with Automatic Error Recovery
+# ---------------------------------------------------------------------------
+async def send_reels_worker(bot, chat_id: int, count: int):
+    """
+    Background worker that sends 'count' videos individually (separate videos, not in a group).
+    Automatically skips broken links and retries until all requested videos are delivered.
+    """
+    sent = 0
+    attempts = 0
+    max_attempts = count * 4  # Prevent infinite loop if multiple URLs fail
+
+    while sent < count and attempts < max_attempts:
+        attempts += 1
+        url = get_single_random_reel()
+        if not url:
+            logger.error("No reels available in cache.")
+            break
+
+        try:
+            # Send upload_video chat action
+            try:
+                await bot.send_chat_action(chat_id=chat_id, action="upload_video")
+            except Exception:
+                pass
+
+            # Send video as separate individual video
+            await bot.send_video(
+                chat_id=chat_id,
+                video=url,
+                supports_streaming=True,
+            )
+            sent += 1
+            logger.info(f"Delivered reel {sent}/{count} to chat {chat_id}")
+
+            # Slight delay between separate videos for smooth delivery and rate limiting
+            if sent < count:
+                await asyncio.sleep(0.5)
+
+        except Exception as e:
+            logger.warning(f"Failed to send reel '{url}': {e}. Retrying with another video...")
+            # Remove bad URL from in-memory cache to prevent re-picking
+            try:
+                REELS_CACHE.remove(url)
+            except ValueError:
+                pass
+            await asyncio.sleep(0.2)
+
+    logger.info(f"Finished delivering {sent}/{count} reels to chat {chat_id}")
+
+
+# ---------------------------------------------------------------------------
+# Telegram Command Handlers (Group-safe & Silent)
 # ---------------------------------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /start command."""
@@ -120,22 +141,31 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reels_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Handles /reels command.
-    Usage:
-      /reels       -> sends 1 video
-      /reels 5     -> sends 5 videos
-      /reels 10    -> sends 10 videos (max)
+    1. Un-sends (deletes) the user's message immediately.
+    2. Spawns background worker to send each video separately.
     """
+    message = update.effective_message
+    chat_id = update.effective_chat.id
+
+    # 1. Un-send the triggering command message
+    if message:
+        try:
+            await message.delete()
+        except Exception as e:
+            logger.warning(f"Could not delete message in chat {chat_id}: {e}")
+
+    # 2. Parse requested count
     count = 1
     if context.args:
         try:
             count = int(context.args[0])
         except ValueError:
-            # If invalid arg in a group, ignore or send brief syntax
-            await update.message.reply_text("Usage: `/reels <1-10>`", parse_mode="Markdown")
-            return
+            return  # Silent on invalid syntax in groups
 
     count = max(1, min(count, 10))
-    await send_reels_as_videos(context.bot, update.effective_chat.id, count)
+
+    # 3. Offload video delivery to background worker
+    asyncio.create_task(send_reels_worker(context.bot, chat_id, count))
 
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -147,7 +177,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /help command."""
     await update.message.reply_text(
         "🎬 **Commands:**\n\n"
-        "• `/reels <1-10>` — Send reels directly as videos (e.g. `/reels 5` or `/reels 10`)\n"
+        "• `/reels <1-10>` — Delivers reels as individual videos (e.g. `/reels 5` or `/reels 10`)\n"
         "• `/ping` — Check server status",
         parse_mode="Markdown",
     )
@@ -160,27 +190,32 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data.startswith("reels_"):
         count = int(query.data.split("_")[1])
-        await send_reels_as_videos(context.bot, query.message.chat_id, count)
-
-
-# NOTE: NO general message handler is registered!
-# The bot remains completely silent/mute in groups when members chat.
+        asyncio.create_task(send_reels_worker(context.bot, query.message.chat_id, count))
 
 
 # ---------------------------------------------------------------------------
 # Webhook & Web Server Endpoints
 # ---------------------------------------------------------------------------
 async def webhook_handler(request: web.Request):
-    """Receives incoming updates from Telegram Webhook."""
-    application = request.app["bot_app"]
+    """
+    Receives incoming webhook updates from Telegram.
+    Instantly returns 200 OK and closes connection to Telegram,
+    while processing the update asynchronously in the backend.
+    """
+    application = request.app.get("bot_app")
+    if not application:
+        return web.Response(text="OK", status=200)
+
     try:
         data = await request.json()
         update = Update.de_json(data, application.bot)
-        await application.process_update(update)
-        return web.Response(text="OK", status=200)
+        # Process asynchronously in backend
+        asyncio.create_task(application.process_update(update))
     except Exception as e:
-        logger.error(f"Error processing webhook update: {e}", exc_info=True)
-        return web.Response(text="Error", status=500)
+        logger.error(f"Error parsing webhook update: {e}")
+
+    # Close connection immediately with 200 OK
+    return web.Response(text="OK", status=200)
 
 
 async def set_webhook_route(request: web.Request):
