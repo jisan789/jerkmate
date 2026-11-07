@@ -44,6 +44,6 @@ https://YOUR-SERVICE-NAME.onrender.com/set_webhook
 ### Method 2 (Direct Telegram API Link)
 Paste into browser:
 ```text
-https://api.telegram.org/bot8829502139:AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk/setWebhook?url=https://YOUR-SERVICE-NAME.onrender.com/webhook
+https://api.telegram.org/bot9092443814:AAGv6wg5CxeTVa14JDnHXehvGrqXqCxICrM/setWebhook?url=https://YOUR-SERVICE-NAME.onrender.com/webhook
 ```
 *(Replace `YOUR-SERVICE-NAME` with your actual Render service name).*

@@ -13,7 +13,7 @@ from telegram.ext import (
 # ---------------------------------------------------------------------------
 # Bot Configuration (Embedded directly inside code - no env vars needed)
 # ---------------------------------------------------------------------------
-BOT_TOKEN = "8829502139:AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk"
+BOT_TOKEN = "9092443814:AAGv6wg5CxeTVa14JDnHXehvGrqXqCxICrM"
 PORT = int(os.environ.get("PORT", 10000))
 
 # Logging setup
@@ -237,7 +237,7 @@ async def home_route(request: web.Request):
         <div class="card">
             <h1>🤖 Jerkmate Bot Server</h1>
             <p><span class="status">● Server Online</span></p>
-            <p><strong>Bot Username:</strong> @jerkreelsBot</p>
+            <p><strong>Bot Username:</strong> @JerkmatejrBot</p>
             <p><strong>Available Reel Videos:</strong> {reels_count}</p>
             <p><strong>Current Webhook URL:</strong><br><code>{current_webhook}</code></p>
             <p><strong>Pending Updates:</strong> {webhook_info_obj.pending_update_count}</p>
