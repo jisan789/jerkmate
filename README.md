@@ -2,7 +2,9 @@
 
 Zero-configuration Telegram Bot built with Python for Render Free Web Service.
 
-- **Direct Video Delivery**: Sends reels directly as native playable Telegram videos (or albums for multiple reels) instead of links.
+- **Direct Video Delivery**: Sends reels directly as native playable Telegram videos instead of links.
+- **5-Minute Auto-Unsend**: Automatically unsends (deletes) the sent videos after 5 minutes in the background to keep chats clean.
+- **Trigger Message Auto-Delete**: Immediately deletes the `/reels` command message when received.
 - **Group-Safe & Silent**: Completely mute in Telegram groups. Ignores all regular chat messages, chatter, and unrecognized input. Only responds to explicit commands.
 - **No environment variables required**: Token and port logic are built right into the code.
 - **Sleep & Auto-Wake**: Automatically sleeps on Render when inactive. Wakes up immediately upon receiving a Telegram message.

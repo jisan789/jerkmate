@@ -63,12 +63,28 @@ def get_single_random_reel() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Background Worker: Video Sender with Automatic Error Recovery
+# Background Worker: Video Sender with Automatic Error Recovery & Auto-Delete
 # ---------------------------------------------------------------------------
+AUTO_DELETE_DELAY = 300  # Automatically unsend videos after 5 minutes (300 seconds)
+
+
+async def auto_delete_message(bot, chat_id: int, message_id: int, delay_seconds: int = AUTO_DELETE_DELAY):
+    """
+    Background timer: Waits for delay_seconds (5 minutes) and un-sends (deletes) the video.
+    Runs completely in the background without blocking the bot.
+    """
+    try:
+        await asyncio.sleep(delay_seconds)
+        await bot.delete_message(chat_id=chat_id, message_id=message_id)
+        logger.info(f"Auto-deleted video {message_id} in chat {chat_id} after {delay_seconds}s.")
+    except Exception as e:
+        logger.warning(f"Could not auto-delete video {message_id} in chat {chat_id}: {e}")
+
+
 async def send_reels_worker(bot, chat_id: int, count: int):
     """
     Background worker that sends 'count' videos individually (separate videos, not in a group).
-    Automatically skips broken links and retries until all requested videos are delivered.
+    Automatically skips broken links, retries, and schedules 5-minute auto-deletion for each video.
     """
     sent = 0
     attempts = 0
@@ -89,13 +105,18 @@ async def send_reels_worker(bot, chat_id: int, count: int):
                 pass
 
             # Send video as separate individual video
-            await bot.send_video(
+            sent_msg = await bot.send_video(
                 chat_id=chat_id,
                 video=url,
                 supports_streaming=True,
             )
             sent += 1
-            logger.info(f"Delivered reel {sent}/{count} to chat {chat_id}")
+            logger.info(f"Delivered reel {sent}/{count} to chat {chat_id} (msg_id: {sent_msg.message_id})")
+
+            # Schedule background auto-delete after 5 minutes (300 seconds)
+            asyncio.create_task(
+                auto_delete_message(bot, chat_id, sent_msg.message_id, AUTO_DELETE_DELAY)
+            )
 
             # Slight delay between separate videos for smooth delivery and rate limiting
             if sent < count:
@@ -177,7 +198,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /help command."""
     await update.message.reply_text(
         "🎬 **Commands:**\n\n"
-        "• `/reels <1-10>` — Delivers reels as individual videos (e.g. `/reels 5` or `/reels 10`)\n"
+        "• `/reels <1-10>` — Delivers reels as individual videos (auto-unsent after 5 minutes)\n"
         "• `/ping` — Check server status",
         parse_mode="Markdown",
     )
