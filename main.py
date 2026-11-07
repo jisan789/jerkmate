@@ -1,8 +1,6 @@
 import os
-import asyncio
 import logging
 from aiohttp import web
-from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -13,31 +11,31 @@ from telegram.ext import (
     filters,
 )
 
-# Load environment variables from .env file
-load_dotenv()
+# ---------------------------------------------------------------------------
+# Bot Configuration (Embedded directly inside code - no external env vars required)
+# ---------------------------------------------------------------------------
+BOT_TOKEN = "8829502139:AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk"
+PORT = int(os.environ.get("PORT", 10000))
 
-# Setup logging
+# Logging setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
-logger = logging.getLogger(__name__)
-
-# Configuration
-DEFAULT_TOKEN = os.getenv("BOT_TOKEN") or ("8829502139:" + "AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk")
-BOT_TOKEN = os.getenv("BOT_TOKEN", DEFAULT_TOKEN).strip()
-PORT = int(os.getenv("PORT", "10000"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", os.getenv("RENDER_EXTERNAL_URL", "")).strip().rstrip("/")
+logger = logging.getLogger("jerkmate_bot")
 
 
+# ---------------------------------------------------------------------------
+# Telegram Bot Handlers
+# ---------------------------------------------------------------------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler for /start command with interactive inline keyboard buttons."""
+    """Handles /start command with menu buttons."""
     user = update.effective_user
     welcome_text = (
         f"👋 Hello, {user.first_name}!\n\n"
-        "🤖 Welcome to **Jerkmate Bot**!\n"
-        "This bot is hosted on **Render** as a Python Web Service.\n\n"
-        "Choose an option below to explore:"
+        "🤖 **Welcome to Jerkmate Bot!**\n"
+        "Running on Render Web Service via Webhook.\n\n"
+        "Choose an option below:"
     )
     keyboard = [
         [
@@ -53,29 +51,28 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler for /help command."""
+    """Handles /help command."""
     help_text = (
-        "📚 **Available Commands:**\n\n"
-        "• `/start` - Launch the bot and view menu buttons\n"
-        "• `/help` - Show command information\n"
-        "• `/ping` - Check server health and response mode\n"
-        "• `/echo <text>` - Echo a message back to you\n\n"
-        "💡 *Tip:* Send any text message to chat with the bot."
+        "📚 **Commands List:**\n\n"
+        "• `/start` - Launch bot menu\n"
+        "• `/help` - Show this help\n"
+        "• `/ping` - Check server status\n"
+        "• `/echo <text>` - Repeat your message\n\n"
+        "Send any message to chat with me!"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler for /ping command."""
-    mode = "Webhook" if WEBHOOK_URL else "Polling (with HTTP Health Server)"
+    """Handles /ping command."""
     await update.message.reply_text(
-        f"🏓 **Pong!**\n\n🟢 Status: Online\n⚙️ Mode: {mode}\n🌐 Port: {PORT}",
-        parse_mode="Markdown"
+        "🏓 **Pong!**\n\n🟢 Server: Active\n⚡ Mode: Webhook on Render",
+        parse_mode="Markdown",
     )
 
 
 async def echo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler for /echo command."""
+    """Handles /echo command."""
     if context.args:
         text = " ".join(context.args)
         await update.message.reply_text(f"🗣️ You said:\n{text}")
@@ -84,87 +81,131 @@ async def echo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handler for inline button callbacks."""
+    """Handles inline keyboard button presses."""
     query = update.callback_query
     await query.answer()
 
     if query.data == "btn_about":
         await query.edit_message_text(
             "ℹ️ **About Jerkmate Bot**\n\n"
-            "This bot is powered by Python (`python-telegram-bot`) and `aiohttp`.\n"
-            "Deployed as a Web Service on Render with automatic health-check endpoints.\n\n"
-            "Press /start to return to the main menu.",
-            parse_mode="Markdown"
+            "• Powered by Python & Telegram Webhook\n"
+            "• Hosted on Render Web Service\n"
+            "• Auto-sleeps when inactive to save resources!\n\n"
+            "Press /start to return.",
+            parse_mode="Markdown",
         )
     elif query.data == "btn_ping":
-        mode = "Webhook" if WEBHOOK_URL else "Polling"
         await query.edit_message_text(
-            f"🏓 **Pong!**\n\n🟢 Server: Active\n⚡ Mode: {mode}\n\nPress /start for menu.",
-            parse_mode="Markdown"
+            "🏓 **Pong!**\n\n🟢 Server: Active\n⚡ Mode: Webhook\n\nPress /start for menu.",
+            parse_mode="Markdown",
         )
     elif query.data == "btn_help":
         await query.edit_message_text(
             "📖 **Help Guide**\n\n"
-            "• `/start` - Main menu\n"
-            "• `/help` - Commands list\n"
-            "• `/ping` - Health check\n\n"
+            "Use `/start` for main menu.\n"
+            "Use `/help` for commands.\n"
+            "Use `/ping` to test response.\n\n"
             "Press /start to return.",
-            parse_mode="Markdown"
+            parse_mode="Markdown",
         )
 
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Echoes standard incoming text messages."""
+    """Handles plain text messages."""
     text = update.message.text
-    await update.message.reply_text(f"📩 Received: {text}\n\n(Type /help to see all commands)")
+    await update.message.reply_text(f"📩 Received: {text}\n(Type /help for options)")
 
 
-# ==============================================================================
-# AIOHTTP Web Server for Render Compatibility (Health Checks & Webhook)
-# ==============================================================================
-
-async def health_check(request: web.Request):
-    """HTTP endpoint to satisfy Render's port binding and health check requirement."""
-    return web.json_response({
-        "status": "healthy",
-        "service": "jerkmate-bot",
-        "mode": "webhook" if WEBHOOK_URL else "polling",
-        "bot": "@jerkreelsBot"
-    })
-
-
+# ---------------------------------------------------------------------------
+# Webhook & Web Server Endpoints
+# ---------------------------------------------------------------------------
 async def webhook_handler(request: web.Request):
-    """Processes incoming updates from Telegram webhook."""
+    """Receives incoming updates from Telegram Webhook."""
     application = request.app["bot_app"]
     try:
         data = await request.json()
         update = Update.de_json(data, application.bot)
-        await application.update_queue.put(update)
+        await application.process_update(update)
         return web.Response(text="OK", status=200)
     except Exception as e:
-        logger.error(f"Error handling webhook update: {e}")
-        return web.Response(text=str(e), status=500)
+        logger.error(f"Error processing webhook update: {e}", exc_info=True)
+        return web.Response(text="Error", status=500)
 
 
-async def init_web_app(application):
-    """Initializes aiohttp web server."""
-    app = web.Application()
-    app["bot_app"] = application
-    app.router.add_get("/", health_check)
-    app.router.add_get("/health", health_check)
-    app.router.add_post("/webhook", webhook_handler)
-    return app
+async def set_webhook_route(request: web.Request):
+    """
+    Convenience endpoint: Visit this URL in your browser to automatically set the webhook!
+    Example: https://your-render-app.onrender.com/set_webhook
+    """
+    application = request.app["bot_app"]
+    host = request.headers.get("X-Forwarded-Host", request.host)
+    scheme = request.headers.get("X-Forwarded-Proto", "https")
+    webhook_url = f"{scheme}://{host}/webhook"
+
+    try:
+        await application.bot.set_webhook(url=webhook_url, allowed_updates=Update.ALL_TYPES)
+        info = await application.bot.get_webhook_info()
+        return web.Response(
+            text=(
+                f"✅ Webhook successfully configured!\n\n"
+                f"URL: {webhook_url}\n"
+                f"Pending updates: {info.pending_update_count}\n\n"
+                f"Your bot is now live and will wake up automatically when messages arrive!"
+            ),
+            content_type="text/plain",
+        )
+    except Exception as e:
+        logger.error(f"Failed to set webhook: {e}")
+        return web.Response(text=f"❌ Failed to set webhook: {e}", status=500)
 
 
-async def main():
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN is missing! Set BOT_TOKEN in your environment or .env file.")
-        return
+async def home_route(request: web.Request):
+    """Home status page & health check endpoint for Render."""
+    application = request.app["bot_app"]
+    webhook_info_obj = await application.bot.get_webhook_info()
+    current_webhook = webhook_info_obj.url or "Not set yet"
 
-    logger.info("Initializing Telegram Bot Application...")
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Jerkmate Bot Server</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; background: #0f172a; color: #f8fafc; }}
+            .card {{ background: #1e293b; border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }}
+            h1 {{ color: #38bdf8; margin-top: 0; }}
+            .btn {{ display: inline-block; background: #0284c7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 15px; }}
+            .btn:hover {{ background: #0369a1; }}
+            code {{ background: #334155; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }}
+            .status {{ display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 0.85em; background: #22c55e20; color: #4ade80; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🤖 Jerkmate Bot Server</h1>
+            <p><span class="status">● Server Online</span></p>
+            <p><strong>Bot Username:</strong> @jerkreelsBot</p>
+            <p><strong>Current Webhook URL:</strong><br><code>{current_webhook}</code></p>
+            <p><strong>Pending Updates:</strong> {webhook_info_obj.pending_update_count}</p>
+            <hr style="border: 0; border-top: 1px solid #334155; margin: 20px 0;">
+            <p>To connect or refresh Telegram Webhook for this Render URL, click below:</p>
+            <a class="btn" href="/set_webhook">⚡ Set Webhook to this Domain</a>
+        </div>
+    </body>
+    </html>
+    """
+    return web.Response(text=html, content_type="text/html")
+
+
+# ---------------------------------------------------------------------------
+# App Initialization Lifecycle
+# ---------------------------------------------------------------------------
+async def on_startup(app: web.Application):
+    """Initializes the Telegram bot application during aiohttp startup."""
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    # Register command and callback handlers
+    # Register bot handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("ping", ping_command))
@@ -172,45 +213,36 @@ async def main():
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-    # Initialize bot
     await application.initialize()
     await application.start()
+    app["bot_app"] = application
+    logger.info("✅ Telegram Bot application initialized and ready for Webhooks.")
 
-    # Start the HTTP server required by Render
-    web_app = await init_web_app(application)
-    runner = web.AppRunner(web_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    logger.info(f"🚀 Render HTTP Health server listening on 0.0.0.0:{PORT}")
 
-    if WEBHOOK_URL:
-        # Webhook mode
-        webhook_endpoint = f"{WEBHOOK_URL}/webhook"
-        logger.info(f"Configuring Telegram Webhook at: {webhook_endpoint}")
-        await application.bot.set_webhook(url=webhook_endpoint, allowed_updates=Update.ALL_TYPES)
-        logger.info("✅ Webhook configured successfully!")
-    else:
-        # Polling mode (Web server still runs for Render's port detection!)
-        logger.info("No WEBHOOK_URL detected. Starting Telegram Polling mode...")
-        await application.bot.delete_webhook(drop_pending_updates=True)
-        await application.updater.start_polling()
-        logger.info("✅ Bot is actively polling for messages!")
+async def on_cleanup(app: web.Application):
+    """Cleans up bot resources during aiohttp shutdown."""
+    logger.info("Shutting down bot application...")
+    bot_app = app.get("bot_app")
+    if bot_app:
+        await bot_app.stop()
+        await bot_app.shutdown()
 
-    # Keep server alive
-    try:
-        while True:
-            await asyncio.sleep(3600)
-    except (asyncio.CancelledError, KeyboardInterrupt):
-        pass
-    finally:
-        logger.info("Shutting down bot and web server...")
-        if not WEBHOOK_URL and application.updater.running:
-            await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
-        await runner.cleanup()
+
+def build_app() -> web.Application:
+    """Builds and returns the aiohttp Web Application."""
+    app = web.Application()
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
+
+    # Routes
+    app.router.add_get("/", home_route)
+    app.router.add_get("/set_webhook", set_webhook_route)
+    app.router.add_post("/webhook", webhook_handler)
+    app.router.add_post("/", webhook_handler)  # Also accept POST to root /
+
+    return app
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    logger.info(f"🚀 Starting Render Webhook server on port {PORT}...")
+    web.run_app(build_app(), host="0.0.0.0", port=PORT)

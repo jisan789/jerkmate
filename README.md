@@ -1,91 +1,51 @@
-# 🤖 Jerkmate Telegram Bot (Render Web Service)
+# 🤖 Jerkmate Telegram Bot (Render Webhook Service)
 
-A production-ready Python Telegram bot configured to run as a **Web Service on [Render](https://render.com)**.
+Zero-configuration Telegram Bot built with Python for Render Free Web Service.
 
----
-
-## 🌟 Features
-
-- **Render Web Service Ready**: Runs a lightweight `aiohttp` web server bound to `0.0.0.0:$PORT` with `/` and `/health` health check endpoints so Render marks your service **Healthy** without timing out.
-- **Dual Mode (Polling or Webhook)**:
-  - **Polling Mode (Default)**: Runs polling immediately with no domain or SSL setup required.
-  - **Webhook Mode (Optional)**: Automatically activates if `WEBHOOK_URL` or `RENDER_EXTERNAL_URL` is set in your environment variables.
-- **Interactive Menu**: `/start` with inline keyboard buttons.
-- **Commands**:
-  - `/start` - Interactive greeting with inline buttons
-  - `/help` - Command list
-  - `/ping` - Latency and server health check
-  - `/echo <text>` - Message echoing test
+- **No environment variables required**: Token and port logic are built right into the code.
+- **Sleep & Auto-Wake**: Uses pure Telegram Webhooks. When inactive, Render automatically sleeps the web service. When you send a message, Telegram's webhook wakes up the server.
 
 ---
 
 ## 🚀 How to Deploy on Render
 
-### Step 1: Push Repository to GitHub
-The repository is hosted at:
-[https://github.com/jisan789/jerkmate](https://github.com/jisan789/jerkmate)
-
-### Step 2: Create a Web Service on Render
-1. Go to [Render Dashboard](https://dashboard.render.com/).
-2. Click **New +** -> **Web Service**.
-3. Connect your GitHub repository `jisan789/jerkmate`.
-4. Fill in the settings:
-   - **Name**: `jerkmate-bot` (or any name you prefer)
+1. Open **[Render Dashboard](https://dashboard.render.com/)**.
+2. Click **New +** ➔ **Web Service**.
+3. Connect your repository: `https://github.com/jisan789/jerkmate`.
+4. Leave settings as default:
    - **Runtime**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `python main.py`
    - **Instance Type**: `Free`
+5. Click **Deploy Web Service** (no need to add any environment variables!).
 
-### Step 3: Add Environment Variables
-Under the **Environment Variables** section in Render, add:
+---
 
-| Key | Value | Description |
-|---|---|---|
-| `BOT_TOKEN` | `8829502139:AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk` | Your Telegram Bot token from @BotFather |
-| `PORT` | `10000` | Port for Render HTTP service |
-| `WEBHOOK_URL` *(Optional)* | `https://your-app-name.onrender.com` | If set, bot will use Webhooks instead of Polling |
+## ⚡ How to Set Webhook (Single Step)
 
-### Step 4: Deploy!
-Click **Create Web Service**. Render will install dependencies and start `python main.py`.
-Once deployed, you will see:
+Once deployed, Render gives you a URL (for example: `https://jerkmate-xxxx.onrender.com`).
+
+You have **two easy ways** to activate the webhook:
+
+### Method 1 (Easiest - 1 Click)
+Simply open this in your browser:
+```text
+https://YOUR-RENDER-NAME.onrender.com/set_webhook
 ```
-==> Docs on specifying a build command: https://render.com/docs/build-command
-==> Installing dependencies with pip install -r requirements.txt
-...
-==> Starting service with 'python main.py'
-INFO - Render HTTP Health server listening on 0.0.0.0:10000
-INFO - Bot is actively polling for messages!
-==> Your service is live 🎉
+It will automatically connect your bot to Telegram and confirm with:
+`✅ Webhook successfully configured!`
+
+---
+
+### Method 2 (Direct Telegram API URL)
+Paste this URL into your browser (replace `YOUR-RENDER-NAME` with your actual Render service name):
+
+```text
+https://api.telegram.org/bot8829502139:AAF95_x5NujmetXE_uPhrWUrtRJSRBZaNxk/setWebhook?url=https://YOUR-RENDER-NAME.onrender.com/webhook
 ```
 
 ---
 
-## 💻 Local Development
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/jisan789/jerkmate.git
-   cd jerkmate
-   ```
-
-2. **Create virtual environment & install requirements:**
-   ```bash
-   python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
-   # On Linux/macOS:
-   source venv/bin/activate
-
-   pip install -r requirements.txt
-   ```
-
-3. **Configure environment:**
-   Create a `.env` file from `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
-
-4. **Run the bot:**
-   ```bash
-   python main.py
-   ```
+## 💤 How Sleep & Wakeup Works on Render Free Tier
+- **When no one is using the bot:** Render automatically puts the service to sleep after 15 minutes of inactivity.
+- **When you message the bot:** Telegram immediately pings your webhook. Render wakes the server up from sleep. If it was sleeping, the first message triggers the wake-up; send your command (like `/start`) and the bot will reply and stay awake while you are chatting!
