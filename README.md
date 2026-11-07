@@ -2,17 +2,18 @@
 
 Zero-configuration Telegram Bot built with Python for Render Free Web Service.
 
+- **Direct Video Delivery**: Sends reels directly as native playable Telegram videos (or albums for multiple reels) instead of links.
+- **Group-Safe & Silent**: Completely mute in Telegram groups. Ignores all regular chat messages, chatter, and unrecognized input. Only responds to explicit commands.
 - **No environment variables required**: Token and port logic are built right into the code.
-- **Sleep & Auto-Wake**: Uses pure Telegram Webhooks. When inactive, Render automatically sleeps the web service. When you send a message, Telegram's webhook wakes up the server.
-- **Reels Generator**: Uses `reels.txt` to deliver up to 10 video reels at once with `/reels <number>`.
+- **Sleep & Auto-Wake**: Automatically sleeps on Render when inactive. Wakes up immediately upon receiving a Telegram message.
 
 ---
 
 ## 🎬 Commands
-- `/reels <number>` - Get random reels from `reels.txt` (e.g. `/reels 10`, maximum 10 at once).
-- `/start` - Launch menu with 1-click buttons.
-- `/help` - View command instructions.
+- `/reels` or `/reels <1-10>` - Sends video reels directly to the chat (e.g. `/reels 5`, `/reels 10`). Maximum 10 at once.
+- `/start` - Launch menu with buttons to get videos.
 - `/ping` - Health check.
+- `/help` - Command list.
 
 ---
 
